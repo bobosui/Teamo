@@ -6,6 +6,8 @@
 
 _`暂时只有中文文档`_
 
+
+
 ## Why I do this
 
 市面上常见的各种图数据库过于笨重，在对于中小型项目的使用场景的适应上显得并不太友好。
@@ -13,6 +15,8 @@ _`暂时只有中文文档`_
 此项目的定位于SQLite3类似，对于高并发、高容错性、海量数据等支持较弱，但相较于Neo4j、Titan、HugeGraph等大型图数据库，此项目更灵活、轻量，不需要过多的配置，单个文件即整个项目的模块，直接引入并使用即可。
 
 对于应用场景，具体可以参考[官网描述的使用场景](https://www.sqlite.org/whentouse.html)。
+
+
 
 ## Requirement
 
@@ -28,9 +32,13 @@ _`暂时只有中文文档`_
 
 _注：因目前项目中基本不存在平台相关性的代码，所以应该大部分平台都可以使用。_
 
+
+
 ## Install
 
 将项目中的`teamo.py`下载下来，并放到将要使用的目录中即可。
+
+
 
 ## Usage
 
@@ -71,14 +79,40 @@ MySQL也类似（使用[pymysql](https://github.com/PyMySQL/PyMySQL)数据库模
 
 具体样例请参考 [sample-sqlite3.py](./sample-sqlite3.py) 与 [sample-mysql.py](./sample-mysql.py) 。
 
+
+
+## Learn More
+
+- [Gremlin Language](https://tinkerpop.apache.org/gremlin.html)
+- [Gremlin Modern graph](http://tinkerpop.apache.org/docs/current/images/tinkerpop-modern.png)
+- [Graph Database](https://en.wikipedia.org/wiki/Graph_database)
+- [PEP-249](https://www.python.org/dev/peps/pep-0249/)
+- [Comment Syntax](https://dev.mysql.com/doc/refman/5.7/en/comments.html) and https://stackoverflow.com/a/41028314
+- ...
+
+
+
+## Contributing
+
+没必要。
+
+
+
+## Benchmark
+
+暂时不要想性能问题，即使有做相应测试，但不严谨，所以没必要。
+
+
+
 ## Related Efforts
 
 - [Titan](https://github.com/thinkaurelius/titan) ([http://titandb.io](http://titandb.io/))
-
 - [Cayley](https://github.com/cayleygraph/cayley)
 - [Neo4j](https://github.com/neo4j/neo4j) ([http://neo4j.com](http://neo4j.com/))
 - [HugeGraph](https://github.com/hugegraph/hugegraph)
 - ...
+
+
 
 ## License
 

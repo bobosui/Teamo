@@ -54,21 +54,29 @@ from teamo import Teamo
 
 # 创建sqlite3数据库的连接（此处使用内存作为存储空间）
 conn = sqlite3.connect(':memory:')
+
 # 创建基于数据库的抽象图
 graph = Teamo(conn, db='sqlite3')
+
 # 从携有数据库信息的图实例中构建空图
 graph.init()
+
 # 创造一个遍历对象（作为查询修改图使用）
 g = graph.traversal()
+
 # 创建点
 tom = g.addV().label('cat').data('{"name":"Tom"}').id()
 jerry = g.addV().label('mouse').data('{"name":"Jerry"}').id()
+
 # 创建边
 g.addE(tom, jerry).label('love').data('{"weight":"0.5"}')
+
 # 查询tom喜欢对象的名字
 lover = g.V().hasLabel('cat').out('love').values('name')
+
 # 输出结果
 print('Tom love {}.'.format(lover))
+
 # 关闭数据库
 conn.close()
 ```

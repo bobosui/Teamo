@@ -107,15 +107,76 @@ MySQL也类似（使用[pymysql](https://github.com/PyMySQL/PyMySQL)数据库模
 
 
 
-## Contributing
-
-没必要。
-
-
-
 ## Benchmark
 
-暂时不要想性能问题，即使有做相应测试，但不严谨，所以没必要。
+参考 [HugeGraph文档中的Performance对比](https://hugegraph.github.io/hugegraph-doc/performance/hugegraph-benchmark-0.5.6.html)
+
+#### 关于的数据集
+
+测试使用人造数据和真实数据
+
+- MIW、SIW和QW使用SNAP数据集
+  - [Enron Dataset](http://snap.stanford.edu/data/email-Enron.html)
+  - [Amazon dataset](http://snap.stanford.edu/data/amazon0601.html)
+  - [Youtube dataset](http://snap.stanford.edu/data/com-Youtube.html)
+  - [LiveJournal dataset](http://snap.stanford.edu/data/com-LiveJournal.html)
+
+测试用的数据规模
+
+| 名称                    | vertex数目 | edge数目  | 文件大小 |
+| :---------------------- | :--------- | :-------- | :------- |
+| email-enron.txt         | 36,691     | 367,661   | 4MB      |
+| com-youtube.ungraph.txt | 1,157,806  | 2,987,624 | 38.7MB   |
+| amazon0601.txt          | 403,393    | 3,387,388 | 47.9MB   |
+| com-lj.ungraph.txt      | 3997961    | 34681189  | 479MB    |
+
+#### 关于测试环境
+
+环境一
+
+| CPU                                          | Memory | 网卡      | 磁盘      |
+| :------------------------------------------- | :----- | :-------- | :-------- |
+| 48 Intel(R) Xeon(R) CPU E5-2650 v4 @ 2.20GHz | 128G   | 10000Mbps | 750GB SSD |
+
+环境二
+
+| CPU                                      | Memory | 磁盘  |
+| :--------------------------------------- | :----- | :---- |
+| 1 AMD Ryzen 7 2700X Eight-Core Processor | 16G    | 500GB |
+
+- HugeGraph版本：0.5.6，RestServer和Gremlin Server和backends都在同一台服务器上 
+  - RocksDB版本：rocksdbjni-5.8.6
+  - 测试环境为**环境一**
+- Titan版本：0.5.4, 使用thrift+Cassandra模式
+  - Cassandra版本：cassandra-3.10，commitlog和data共用SSD
+  - 测试环境为**环境一**
+- Neo4j版本：2.0.1
+  - 测试环境为**环境一**
+- Teamo版本：0.1.0，使用SQLite3，单机单线程模式
+  - 测试环境为**环境二**
+
+#### 测试结果
+
+##### Batch插入性能
+
+| Backend   | email-enron(30w) | amazon0601(300w) | com-youtube.ungraph(300w) | com-lj.ungraph(3000w) |
+| :-------- | :--------------- | :--------------- | :------------------------ | :-------------------- |
+| HugeGraph | 0.629            | 5.711            | 5.243                     | 67.033                |
+| Titan     | 10.15            | 108.569          | 150.266                   | 1217.944              |
+| Neo4j     | 3.884            | 18.938           | 24.890                    | 281.537               |
+| Teamo     | 9.79             | 126.92           | 107.07                    | 未测试                |
+
+##### 遍历性能
+
+待测试
+
+##### 其他性能
+
+待测试
+
+
+
+**（暂时不考虑性能问题，即使有做相应测试，但测试环境不同，所以性能对比不具有严格的参考价值。）**
 
 
 

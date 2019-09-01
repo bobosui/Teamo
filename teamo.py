@@ -1088,15 +1088,110 @@ def generate_email_enron_graph(conn, db: str):
         g.addVinRaw()
     with open('Email-Enron.txt') as f:
         count = 0
-        for line in f.readlines():
-            chars = line.split()
-            if chars[0] == '#':
-                continue
-            g.addEinRaw(int(chars[0]) + 1, int(chars[1]) + 1)
+        # 解析一行中两个数字 并且增一（为了使点id由1开始）
+        to_int = lambda x: (int(x[0]) + 1, int(x[1]) + 1)
+        # 4是硬编码 默认原Email-Enron.txt仅有四行注释
+        lines = [ to_int(line.split()) for line in f.readlines()[4:] ]
+        t = time.time()
+        for line in lines:
+            g.addEinRaw(line[0], line[1])
             count = count + 1
-            print('edge {} done. {:8.2f}%'.format(count, count * 100 / 367662))
+            if count % 10000 == 0:
+                print('edge {} done. {:8.2f}%'.format(count, count * 100 / 367662))
+        print('edge {} done. {:8.2f}%'.format(count, count * 100 / 367662))
+        elapsed = time.time() - t
+        print('[Raw] Time waste: {} => {}s'.format(datetime.timedelta(seconds=elapsed), elapsed))
     cur.execute("COMMIT")
 
+def generate_amazon0601_graph(conn, db: str):
+    graph = Teamo(conn, db=db)
+    # 若是sqlite3，关闭智能commit模式，便于自己操作事务
+    if graph.get_db_name().lower() == 'SQLite3'.lower():
+        conn.isolation_level = None
+    graph.destroy()
+    graph.init()
+    g = graph.traversal()
+    cur = conn.cursor()
+    cur.execute("BEGIN")
+    # Nodes: 403394 Edges: 3387388
+    for _ in range(403394):
+        g.addVinRaw()
+    with open('Amazon0601.txt') as f:
+        count = 0
+        # 解析一行中两个数字 并且增一（为了使点id由1开始）
+        to_int = lambda x: (int(x[0]) + 1, int(x[1]) + 1)
+        # 4是硬编码 默认原Amazon0601.txt仅有四行注释
+        lines = [ to_int(line.split()) for line in f.readlines()[4:] ]
+        t = time.time()
+        for line in lines:
+            g.addEinRaw(line[0], line[1])
+            count = count + 1
+            if count % 100000 == 0:
+                print('edge {} done. {:8.2f}%'.format(count, count * 100 / 3387388))
+        print('edge {} done. {:8.2f}%'.format(count, count * 100 / 3387388))
+        elapsed = time.time() - t
+        print('[Raw] Time waste: {} => {}s'.format(datetime.timedelta(seconds=elapsed), elapsed))
+    cur.execute("COMMIT")
+
+def generate_com_youtube_ungraph_graph(conn, db: str):
+    graph = Teamo(conn, db=db)
+    # 若是sqlite3，关闭智能commit模式，便于自己操作事务
+    if graph.get_db_name().lower() == 'SQLite3'.lower():
+        conn.isolation_level = None
+    graph.destroy()
+    graph.init()
+    g = graph.traversal()
+    cur = conn.cursor()
+    cur.execute("BEGIN")
+    # Nodes: 1134890(有问题 暂定 1157827) Edges: 2987624
+    for _ in range(1157827):
+        g.addVinRaw()
+    with open('com-youtube.ungraph.txt') as f:
+        count = 0
+        # 解析一行中两个数字 不需要增一（文件中id本身就是由1开始）
+        to_int = lambda x: (int(x[0]), int(x[1]))
+        # 4是硬编码 默认原com-youtube.ungraph.txt仅有四行注释
+        lines = [ to_int(line.split()) for line in f.readlines()[4:] ]
+        t = time.time()
+        for line in lines:
+            g.addEinRaw(line[0], line[1])
+            count = count + 1
+            if count % 100000 == 0:
+                print('edge {} done. {:8.2f}%'.format(count, count * 100 / 2987624))
+        print('edge {} done. {:8.2f}%'.format(count, count * 100 / 2987624))
+        elapsed = time.time() - t
+        print('[Raw] Time waste: {} => {}s'.format(datetime.timedelta(seconds=elapsed), elapsed))
+    cur.execute("COMMIT")
+
+def generate_com_lj_ungraph_graph(conn, db: str):
+    graph = Teamo(conn, db=db)
+    # 若是sqlite3，关闭智能commit模式，便于自己操作事务
+    if graph.get_db_name().lower() == 'SQLite3'.lower():
+        conn.isolation_level = None
+    graph.destroy()
+    graph.init()
+    g = graph.traversal()
+    cur = conn.cursor()
+    cur.execute("BEGIN")
+    # Nodes: 3997962(有问题 暂定为 4040000) Edges: 34681189
+    for _ in range(4040000):
+        g.addVinRaw()
+    with open('com-lj.ungraph.txt') as f:
+        count = 0
+        # 解析一行中两个数字 不需要增一（文件中id本身就是由1开始）
+        to_int = lambda x: (int(x[0]) + 1, int(x[1]) + 1)
+        # 4是硬编码 默认原com-youtube.ungraph.txt仅有四行注释
+        lines = [ to_int(line.split()) for line in f.readlines()[4:] ]
+        t = time.time()
+        for line in lines:
+            g.addEinRaw(line[0], line[1])
+            count = count + 1
+            if count % 1000000 == 0:
+                print('edge {} done. {:8.2f}%'.format(count, count * 100 / 34681189))
+        print('edge {} done. {:8.2f}%'.format(count, count * 100 / 34681189))
+        elapsed = time.time() - t
+        print('[Raw] Time waste: {} => {}s'.format(datetime.timedelta(seconds=elapsed), elapsed))
+    cur.execute("COMMIT")
 
 def modify_test_on_greamlin_modern_graph(conn, db: str) -> None:
     graph = Teamo(conn, db=db)
@@ -1303,6 +1398,13 @@ def sqlite_mysql_read_write_test():
     sqlite_conn.close()
     mysql_conn.close()
 
+def query_test_on_big_sparse_graph(conn, db: str) -> None:
+    print('基于 “一千万个点与平均出度为十（一亿条边）的稀疏图” 的只读测试 Running...')
+    
+    graph = Teamo(conn, db=db)
+    g = graph.traversal()
+    g.V()
+
 def main():
     # sqlite_mysql_read_write_test()
     # mysql_conn = pymysql.connect(host='localhost', port=3306,
@@ -1310,12 +1412,17 @@ def main():
     #     db='big_graph', charset='utf8', cursorclass=pymysql.cursors.Cursor)
     # generate_big_graph(mysql_conn, 'mysql', 1000)
     # mysql_conn.close()
-    sqlite_conn = sqlite3.connect('gremlin_modern_graph.sqlite')
-    generate_gremlin_modern_graph(sqlite_conn, 'sqlite3')
+    sqlite_conn = sqlite3.connect('com-lj-ungraph.sqlite')
+    # sqlite_conn = sqlite3.connect('gremlin_modern_graph.sqlite')
+    # generate_gremlin_modern_graph(sqlite_conn, 'sqlite3')
     # generate_email_enron_graph(sqlite_conn, 'sqlite3')
     # generate_big_graph(sqlite_conn, 'sqlite3', 2000)
-    # generate_sparse_graph(sqlite_conn, 'sqlite3', 1000000, 15)
-    modify_test_on_greamlin_modern_graph(sqlite_conn, 'sqlite3')
+    # generate_sparse_graph(sqlite_conn, 'sqlite3', 10000000, 10)
+    # query_test_on_big_sparse_graph(sqlite_conn, 'sqlite3')
+    # modify_test_on_greamlin_modern_graph(sqlite_conn, 'sqlite3')
+    # generate_amazon0601_graph(sqlite_conn, 'sqlite3')
+    # generate_com_youtube_ungraph_graph(sqlite_conn, 'sqlite3')
+    generate_com_lj_ungraph_graph(sqlite_conn, 'sqlite3')
     sqlite_conn.close()
 
 if __name__ == "__main__":

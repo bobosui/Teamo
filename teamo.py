@@ -1405,6 +1405,18 @@ def query_test_on_big_sparse_graph(conn, db: str) -> None:
     g = graph.traversal()
     g.V()
 
+# FN(Find Neighbor), 遍历所有vertex, 根据vertex查邻接edge, 通过edge和vertex查other vertex
+def find_neighbor(conn, db: str):
+    graph = Teamo(conn, db=db)
+    g = graph.traversal()
+    g.V().out()
+
+# FA(Find Adjacent), 遍历所有edge，根据edge获得source vertex和target vertex
+def find_adjacent(conn, db: str):
+    graph = Teamo(conn, db=db)
+    g = graph.traversal()
+    g.E().bothV()
+
 def main():
     # sqlite_mysql_read_write_test()
     # mysql_conn = pymysql.connect(host='localhost', port=3306,
@@ -1412,7 +1424,10 @@ def main():
     #     db='big_graph', charset='utf8', cursorclass=pymysql.cursors.Cursor)
     # generate_big_graph(mysql_conn, 'mysql', 1000)
     # mysql_conn.close()
-    sqlite_conn = sqlite3.connect('com-lj-ungraph.sqlite')
+    # sqlite_conn = sqlite3.connect('com-lj-ungraph.sqlite')
+    # sqlite_conn = sqlite3.connect('amazon0601.sqlite')
+    sqlite_conn = sqlite3.connect('email-enron.sqlite')
+    # sqlite_conn = sqlite3.connect('com-youtube-ungraph.sqlite')
     # sqlite_conn = sqlite3.connect('gremlin_modern_graph.sqlite')
     # generate_gremlin_modern_graph(sqlite_conn, 'sqlite3')
     # generate_email_enron_graph(sqlite_conn, 'sqlite3')
@@ -1422,7 +1437,9 @@ def main():
     # modify_test_on_greamlin_modern_graph(sqlite_conn, 'sqlite3')
     # generate_amazon0601_graph(sqlite_conn, 'sqlite3')
     # generate_com_youtube_ungraph_graph(sqlite_conn, 'sqlite3')
-    generate_com_lj_ungraph_graph(sqlite_conn, 'sqlite3')
+    # generate_com_lj_ungraph_graph(sqlite_conn, 'sqlite3')
+    find_neighbor(sqlite_conn, 'sqlite3')
+    # find_adjacent(sqlite_conn, 'sqlite3')
     sqlite_conn.close()
 
 if __name__ == "__main__":

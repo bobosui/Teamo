@@ -19,6 +19,8 @@ def shouldNotHappen(message: str) -> None:
 # 仅考虑简单图（尽管似乎可以实现多重图）
 class Teamo:
     
+    ADD_EDGE_BATCH = 1000
+
     # 构造函数做的事是创建一个空图
     def __init__(self, conn, *, db: str):
         # 判断参数合法性
@@ -291,6 +293,124 @@ class Teamo:
         if do_commit:
             self._conn.commit()
 
+    # 批量插入边，前提是输入的数据是能保证正确的
+    def _add_edge_in_branch(self, edges: Sequence[Tuple[int, int]]) -> None:
+        c = self._conn.cursor()
+        # 分批次进行(暂不实现)
+        # 思路是，在一个十字链表的网里加入另一个在内存里构建好的十字链表网（合并两个网）
+        # 首先获取接下来生成的点的id，手动insert对应的id
+        c.execute('''SELECT MAX(id) FROM Edge;''')
+        (max_edge_id,) = c.fetchone()
+        if max_edge_id is None:
+            max_edge_id = 0
+        new_id = max_edge_id + 1
+        # 获取可能的id上限
+        c.execute('''SELECT MAX(id) FROM Vertex;''')
+        (max_vertex_id,) = c.fetchone()
+        if max_vertex_id is None:
+            shouldNotHappen('不能在不存在点的情况下批量添加边')
+        # 首先在内存里构建新网 最终以表的形式拼接到原数据库中
+        new_table = [ [ e[0], e[1], None, None, None, None ] for e in edges ]
+        # out_table[0] 不使用
+        out_table = [ [] for _ in range(max_vertex_id + 1) ]
+        # in_table[0] 不使用
+        in_table = [ [] for _ in range(max_vertex_id + 1) ]
+        for i, e in enumerate(edges):
+            # 在出边表中对应的尾顶点处的list尾部加上此边在new_table中的索引
+            out_table[e[0]].append(i)
+            # 在出边表中对应的尾顶点处的list尾部加上此边在new_table中的索引
+            in_table[e[1]].append(i)
+        for i in range(1, len(out_table)):
+            # 此顶点i的出链表
+            k = out_table[i]
+            k_len = len(k)
+            # k_len == 0 时 此顶点出链表为空
+            # k_len == 1 时 此顶点出链表仅有一个节点 forward & revfor 都为 NULL
+            if k_len < 2:
+                continue
+            # list head
+            new_table[k[0]][3] = k[1]
+            new_table[k[1]][5] = k[0]
+            for j in range(1, k_len - 1):
+                # forward
+                new_table[k[j]][3] = k[j + 1]
+                # revfor
+                new_table[k[j + 1]][5] = k[j]
+            # list tail
+            new_table[k[k_len - 2]][3] = k[k_len - 1]
+            new_table[k[k_len - 1]][5] = k[k_len - 2]
+        for i in range(1, len(in_table)):
+            # 此顶点i的入链表
+            k = in_table[i]
+            k_len = len(k)
+            # k_len == 0 时 此顶点入链表为空
+            # k_len == 1 时 此顶点入链表仅有一个节点 backward & revback 都为 NULL
+            if k_len < 2:
+                continue
+            # list head
+            new_table[k[0]][2] = k[1]
+            new_table[k[1]][4] = k[0]
+            for j in range(1, k_len - 1):
+                # backward
+                new_table[k[j]][2] = k[j + 1]
+                # revback
+                new_table[k[j + 1]][4] = k[j]
+            # list tail
+            new_table[k[k_len - 2]][2] = k[k_len - 1]
+            new_table[k[k_len - 1]][4] = k[k_len - 2]
+        adjust_id = lambda x, i=new_id: None if x is None else x + i
+        for i, row in enumerate(new_table):
+            c.execute(
+                '''INSERT INTO Edge (`id`, `tail`, `head`, `backward`, `forward`, `revback`, `revfor`)
+                VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})'''.format(ph=self._ph), 
+                (adjust_id(i), row[0], row[1], adjust_id(row[2]), adjust_id(row[3]), adjust_id(row[4]), adjust_id(row[5]))
+            )
+        for i, j in enumerate(out_table):
+            # 同时排除了out_table[0]
+            if len(j) == 0:
+                continue
+            # 获取旧链表的表头
+            c.execute(
+                '''SELECT `out_edge` FROM Vertex WHERE `id`={ph}'''.format(ph=self._ph), (i,)
+            )
+            (out_id,) = c.fetchone()
+            # 更新Vertex上的顶点的出边链表表头索引
+            c.execute(
+                '''UPDATE Vertex SET `out_edge`={ph} WHERE `id`={ph}'''.format(ph=self._ph), (j[0] + new_id, i)
+            )
+            if out_id is not None:
+                # 衔接新链表尾部与旧链表头部
+                c.execute(
+                    '''UPDATE Edge SET `forward`={ph} WHERE `id`={ph}'''.format(ph=self._ph), (out_id, j[-1] + new_id)
+                )
+                # 将旧的链表头节点的逆向参数revfor补上
+                c.execute(
+                    '''UPDATE Edge SET `revfor`={ph} WHERE `id`={ph}'''.format(ph=self._ph), (j[-1] + new_id, out_id)
+                )
+        for i, j in enumerate(in_table):
+            # 同时排除了in_table[0]
+            if len(j) == 0:
+                continue
+            # 获取旧链表的表头
+            c.execute(
+                '''SELECT `in_edge` FROM Vertex WHERE `id`={ph}'''.format(ph=self._ph), (i,)
+            )
+            (in_id,) = c.fetchone()
+            # 更新Vertex上的顶点的入边链表表头索引
+            c.execute(
+                '''UPDATE Vertex SET `in_edge`={ph} WHERE `id`={ph}'''.format(ph=self._ph), (j[0] + new_id, i)
+            )
+            if in_id is not None:
+                # 衔接新链表尾部与旧链表头部
+                c.execute(
+                    '''UPDATE Edge SET `backward`={ph} WHERE `id`={ph}'''.format(ph=self._ph), (in_id, j[-1] + new_id)
+                )
+                # 将旧的链表头节点的逆向参数revback补上
+                c.execute(
+                    '''UPDATE Edge SET `revback`={ph} WHERE `id`={ph}'''.format(ph=self._ph), (j[-1] + new_id, in_id)
+                )
+        self._conn.commit()
+
     def _get_all_vertex(self) -> Sequence[int]:
         c = self._conn.cursor()
         # 获取Vertex Table中所有的rows中的id
@@ -558,6 +678,9 @@ class GraphTraversalSource:
             edge_id_list = self._graph._get_all_edge()
         graph_traversal._set_edge(edge_id_list)
         return graph_traversal
+
+    def Between(self, from_vertex: int, to_vertex: int) -> 'GraphTraversal':
+        pass
 
     # Add a new vertex to graph
     # Return new traversal with the new vertex
@@ -1004,6 +1127,42 @@ def generate_gremlin_modern_graph(conn, db: str):
     g.addE(v6, v3).label('created').data('{"weight:0.2"}')
     print('Done!')
 
+def generate_gremlin_modern_graph_in_branch(conn, db: str):
+    print('Build Gremlin Modern Graph Runing In Batch...')
+    # 基于数据库的抽象图
+    graph = Teamo(conn, db=db)
+    # 删除已有表 慎用
+    graph.destroy()
+    # 从数据库中构建空图
+    graph.init()
+    # 创造一个遍历对象
+    g = graph.traversal()
+    # 插入六个点
+    g.addV().label('person').data('{"name":"marko","age":29}').id()
+    g.addV().label('person').data('{"name":"vadas","age":27}').id()
+    g.addV().label('software').data('{"name":"lop","lang":"java"}').id()
+    g.addV().label('person').data('{"name":"josh","age":32}').id()
+    g.addV().label('software').data('{"name":"ripple","lang":"java"}').id()
+    g.addV().label('person').data('{"name":"peter","age":35}').id()
+    # 插入六条边
+    graph._add_edge_in_branch([ (1, 2), (1, 4), (1, 3), (4, 5), (4, 3), (6, 3) ])
+    # 找到点A所有出边 点B所有入边 取交集 即得 A -> B 的边
+    def take_e(va: int, vb: int) -> int:
+        va_out_e = g.V(va).outE().identity()
+        vb_in_e = g.V(vb).inE().identity()
+        e_set = set(va_out_e) & set(vb_in_e)
+        if len(e_set) != 1:
+            shouldNotHappen('应该只有一条由A到B的边（简单图）')
+        return e_set.pop()
+    # 为边插入标签属性
+    g.E(take_e(1, 2)).label('knows').data('{"weight:0.5"}')
+    g.E(take_e(1, 4)).label('knows').data('{"weight:1.0"}')
+    g.E(take_e(1, 3)).label('created').data('{"weight:0.4"}')
+    g.E(take_e(4, 5)).label('created').data('{"weight:1.0"}')
+    g.E(take_e(4, 3)).label('created').data('{"weight:0.4"}')
+    g.E(take_e(6, 3)).label('created').data('{"weight:0.2"}')
+    print('Done!')
+
 def generate_big_graph(conn, db: str, vertex_number: int):
     # 随机数设定种子 保证每次生成的图都一样
     random.seed('pyGraph')    
@@ -1103,6 +1262,25 @@ def generate_email_enron_graph(conn, db: str):
         print('[Raw] Time waste: {} => {}s'.format(datetime.timedelta(seconds=elapsed), elapsed))
     cur.execute("COMMIT")
 
+def generate_email_enron_graph_in_branch(conn, db: str):
+    graph = Teamo(conn, db=db)
+    graph.destroy()
+    graph.init()
+    g = graph.traversal()
+    # Nodes: 36692 Edges: 367662
+    for _ in range(36692):
+        g.addVinRaw()
+    conn.commit()
+    with open('Email-Enron.txt') as f:
+        # 解析一行中两个数字 并且增一（为了使点id由1开始）
+        to_int = lambda x: (int(x[0]) + 1, int(x[1]) + 1)
+        # 4是硬编码 默认原Email-Enron.txt仅有四行注释
+        lines = [ to_int(line.split()) for line in f.readlines()[4:] ]
+        t = time.time()
+        g._graph._add_edge_in_branch(lines)
+        elapsed = time.time() - t
+        print('[Raw] Time waste: {} => {}s'.format(datetime.timedelta(seconds=elapsed), elapsed))
+
 def generate_amazon0601_graph(conn, db: str):
     graph = Teamo(conn, db=db)
     # 若是sqlite3，关闭智能commit模式，便于自己操作事务
@@ -1132,6 +1310,25 @@ def generate_amazon0601_graph(conn, db: str):
         elapsed = time.time() - t
         print('[Raw] Time waste: {} => {}s'.format(datetime.timedelta(seconds=elapsed), elapsed))
     cur.execute("COMMIT")
+
+def generate_amazon0601_graph_in_branch(conn, db: str):
+    graph = Teamo(conn, db=db)
+    graph.destroy()
+    graph.init()
+    g = graph.traversal()
+    # Nodes: 403394 Edges: 3387388
+    for _ in range(403394):
+        g.addVinRaw()
+    conn.commit()
+    with open('Amazon0601.txt') as f:
+        # 解析一行中两个数字 并且增一（为了使点id由1开始）
+        to_int = lambda x: (int(x[0]) + 1, int(x[1]) + 1)
+        # 4是硬编码 默认原Amazon0601.txt仅有四行注释
+        lines = [ to_int(line.split()) for line in f.readlines()[4:] ]
+        t = time.time()
+        g._graph._add_edge_in_branch(lines)
+        elapsed = time.time() - t
+        print('[Raw] Time waste: {} => {}s'.format(datetime.timedelta(seconds=elapsed), elapsed))
 
 def generate_com_youtube_ungraph_graph(conn, db: str):
     graph = Teamo(conn, db=db)
@@ -1163,6 +1360,25 @@ def generate_com_youtube_ungraph_graph(conn, db: str):
         print('[Raw] Time waste: {} => {}s'.format(datetime.timedelta(seconds=elapsed), elapsed))
     cur.execute("COMMIT")
 
+def generate_com_youtube_ungraph_graph_in_branch(conn, db: str):
+    graph = Teamo(conn, db=db)
+    graph.destroy()
+    graph.init()
+    g = graph.traversal()
+    # Nodes: 1134890(有问题 暂定 1157827) Edges: 2987624
+    for _ in range(1157827):
+        g.addVinRaw()
+    conn.commit()
+    with open('com-youtube.ungraph.txt') as f:
+        # 解析一行中两个数字 不需要增一（文件中id本身就是由1开始）
+        to_int = lambda x: (int(x[0]), int(x[1]))
+        # 4是硬编码 默认原com-youtube.ungraph.txt仅有四行注释
+        lines = [ to_int(line.split()) for line in f.readlines()[4:] ]
+        t = time.time()
+        g._graph._add_edge_in_branch(lines)
+        elapsed = time.time() - t
+        print('[Raw] Time waste: {} => {}s'.format(datetime.timedelta(seconds=elapsed), elapsed))
+
 def generate_com_lj_ungraph_graph(conn, db: str):
     graph = Teamo(conn, db=db)
     # 若是sqlite3，关闭智能commit模式，便于自己操作事务
@@ -1192,6 +1408,25 @@ def generate_com_lj_ungraph_graph(conn, db: str):
         elapsed = time.time() - t
         print('[Raw] Time waste: {} => {}s'.format(datetime.timedelta(seconds=elapsed), elapsed))
     cur.execute("COMMIT")
+
+def generate_com_lj_ungraph_graph_in_branch(conn, db: str):
+    graph = Teamo(conn, db=db)
+    graph.destroy()
+    graph.init()
+    g = graph.traversal()
+    # Nodes: 3997962(有问题 暂定为 4040000) Edges: 34681189
+    for _ in range(4040000):
+        g.addVinRaw()
+    conn.commit()
+    with open('com-lj.ungraph.txt') as f:
+        # 解析一行中两个数字 不需要增一（文件中id本身就是由1开始）
+        to_int = lambda x: (int(x[0]) + 1, int(x[1]) + 1)
+        # 4是硬编码 默认原com-youtube.ungraph.txt仅有四行注释
+        lines = [ to_int(line.split()) for line in f.readlines()[4:] ]
+        t = time.time()
+        g._graph._add_edge_in_branch(lines)
+        elapsed = time.time() - t
+        print('[Raw] Time waste: {} => {}s'.format(datetime.timedelta(seconds=elapsed), elapsed))
 
 def modify_test_on_greamlin_modern_graph(conn, db: str) -> None:
     graph = Teamo(conn, db=db)
@@ -1417,8 +1652,15 @@ def find_adjacent(conn, db: str):
     g = graph.traversal()
     g.E().bothV()
 
+def test_mini():
+    sqlite_conn = sqlite3.connect('gremlin_modern_graph.sqlite')
+    generate_gremlin_modern_graph_in_branch(sqlite_conn, 'sqlite3')
+    query_test_on_gremlin_modern_graph(sqlite_conn, 'sqlite3')
+    modify_test_on_greamlin_modern_graph(sqlite_conn, 'sqlite3')
+    sqlite_conn.close()
+
 def main():
-    sqlite_mysql_read_write_test()
+    # sqlite_mysql_read_write_test()
     # mysql_conn = pymysql.connect(host='localhost', port=3306,
     #     user='root', password='teamo',
     #     db='big_graph', charset='utf8', cursorclass=pymysql.cursors.Cursor)
@@ -1428,7 +1670,14 @@ def main():
     # sqlite_conn = sqlite3.connect('amazon0601.sqlite')
     # sqlite_conn = sqlite3.connect('email-enron.sqlite')
     # sqlite_conn = sqlite3.connect('com-youtube-ungraph.sqlite')
-    # sqlite_conn = sqlite3.connect('gremlin_modern_graph.sqlite')
+    sqlite_conn = sqlite3.connect('gremlin_modern_graph.sqlite')
+    generate_com_lj_ungraph_graph_in_branch(sqlite_conn, 'sqlite3')
+    # generate_email_enron_graph_in_branch(sqlite_conn, 'sqlite3')
+    # generate_amazon0601_graph_in_branch(sqlite_conn, 'sqlite3')
+    # generate_com_youtube_ungraph_graph_in_branch(sqlite_conn, 'sqlite3')
+    # generate_gremlin_modern_graph_in_branch(sqlite_conn, 'sqlite3')
+    # query_test_on_gremlin_modern_graph(sqlite_conn, 'sqlite3')
+    # modify_test_on_greamlin_modern_graph(sqlite_conn, 'sqlite3')
     # generate_gremlin_modern_graph(sqlite_conn, 'sqlite3')
     # generate_email_enron_graph(sqlite_conn, 'sqlite3')
     # generate_big_graph(sqlite_conn, 'sqlite3', 2000)
@@ -1440,7 +1689,7 @@ def main():
     # generate_com_lj_ungraph_graph(sqlite_conn, 'sqlite3')
     # find_neighbor(sqlite_conn, 'sqlite3')
     # find_adjacent(sqlite_conn, 'sqlite3')
-    # sqlite_conn.close()
+    sqlite_conn.close()
 
 if __name__ == "__main__":
     t = time.time()

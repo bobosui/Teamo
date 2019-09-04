@@ -19,16 +19,24 @@ def shouldNotHappen(message: str) -> None:
 # 仅考虑简单图（尽管似乎可以实现多重图）
 class Teamo:
     
-    ADD_EDGE_BATCH = 1000
+    # ADD_EDGE_BATCH = 1000
 
     # 构造函数做的事是创建一个空图
     def __init__(self, conn, *, db: str):
-        # 判断参数合法性
+        if isinstance(conn, list):
+            if len(conn) == 0:
+                shouldNotHappen('至少需要有一个数据库连接')
+        else:
+            conn = [ conn ]
+        # 数据库连接必须符合Python的DB-API 2.0协议
         db_api_2_methods = [ 'close', 'commit', 'rollback', 'cursor' ]
-        for method in db_api_2_methods:
-            if not callable(getattr(conn, method)):
-                shouldNotHappen('不符合Python DB-API 2.0协议')
-        self._conn = conn # 此图所在的数据库的连接
+        for c in conn:
+            # 判断参数合法性
+            for method in db_api_2_methods:
+                if not callable(getattr(c, method)):
+                    shouldNotHappen('不符合Python DB-API 2.0协议')
+        self._conn = conn[0] # 此图所在的数据库的连接
+        self._conn_pool = conn[1:] # 备用用于的多线程操作的连接
         self._base_db = None
         if db.lower() == 'SQLite3'.lower():
             self._base_db = 'SQLite3'
@@ -304,6 +312,7 @@ class Teamo:
     # 单词批量插入 将输入的所有边一次性在内存里构建好然后插入
     def _add_edge_in_one_branch(self, edges: Sequence[Tuple[int, int]]) -> None:
         c = self._conn.cursor()
+        c.execute('''BEGIN;''')
         # 分批次进行(暂不实现)
         # 思路是，在一个十字链表的网里加入另一个在内存里构建好的十字链表网（合并两个网）
         # 首先获取接下来生成的点的id，手动insert对应的id
@@ -417,7 +426,9 @@ class Teamo:
                 c.execute(
                     '''UPDATE Edge SET `revback`={ph} WHERE `id`={ph}'''.format(ph=self._ph), (j[-1] + new_id, in_id)
                 )
-        self._conn.commit()
+        # self._conn.commit()
+        c.execute('''COMMIT;''')
+
 
     def _get_all_vertex(self) -> Sequence[int]:
         c = self._conn.cursor()
@@ -705,6 +716,10 @@ class GraphTraversalSource:
         graph_traversal = GraphTraversal(self._graph, self._package_pool)
         graph_traversal._set_edge([edge_id])
         return graph_traversal
+
+    # add edge in batch
+    def addEinBatch(self, edges: Sequence[Tuple[int, int]]) -> None:
+        self._graph._add_edge_in_branch(edges)
 
     # [!] @Deprecated
     # [!] Warning: You had better know what you are doing.
@@ -1109,10 +1124,19 @@ class GraphTraversal:
             for e in self._edges:
                 self._graph._remove_edge(e)
             self._clean_edge()
-            
+
+    def __str__(self) -> str:
+        return str(self.identity())
+
+    # 暂时__repr__ = __str__ 之后不知道会不会变
+    def __repr__(self) -> str:
+        return str(self.identity())
+
+
 # 放在这里啥也不干
 def main():
     pass
+
 
 if __name__ == "__main__":
     main()

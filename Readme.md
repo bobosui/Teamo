@@ -12,16 +12,18 @@ _`暂时只有中文文档`_
 
 市面上常见的各种图数据库过于笨重，在对于中小型项目的使用场景的适应上显得并不太友好。
 
-此项目的定位于SQLite类似，对于高并发、高容错性、海量数据等支持较弱，但相较于Neo4j、Titan、HugeGraph等大型图数据库，此项目更灵活、轻量，不需要过多的配置，单个文件即整个项目的模块，直接引入并使用即可。
+此项目的定位于SQLite类似，对于高并发、高容错性、海量数据等支持较弱，但相较于Neo4j、Titan、GraphDB等大型图数据库，此项目更轻量。
 
-对于SQLite的应用场景，具体可以参考[SQLite官网描述的使用场景](https://www.sqlite.org/whentouse.html)。
+不需要过多的依赖与繁琐的配置过程，单个文件即整个项目的模块，直接引入并使用即可。
+
+（对于SQLite的应用场景，具体可以参考[SQLite官网描述的使用场景](https://www.sqlite.org/whentouse.html)。）
 
 
 
 ## Feature
 
 - 支持多个底层关系型数据库（现阶段只有两个）
-- SQLite3 作为底层引擎时，生成一百万个点，平均出度为十五（一千五百万条边）的稀疏图耗时21min 32sec。
+- SQLite3 作为底层引擎时，批量插入数据与Neo4j等接近。
 - 目前基本支持最高上亿级点边的图。
 
 
@@ -93,7 +95,7 @@ conn.close()
 
 MySQL也类似（使用[pymysql](https://github.com/PyMySQL/PyMySQL)数据库模块）
 
-具体样例请参考 [sample-sqlite3.py](./sample-sqlite3.py) 与 [sample-mysql.py](./sample-mysql.py) 。
+具体样例请参考 [sample-sqlite3.py](sample/sample-sqlite3.py) 与 [sample-mysql.py](sample/sample-mysql.py) 。
 
 
 
@@ -191,7 +193,7 @@ MySQL也类似（使用[pymysql](https://github.com/PyMySQL/PyMySQL)数据库模
 
 
 
-**（暂时不考虑性能问题，即使有做相应测试，但测试环境不同，所以性能对比不具有严格的参考价值。）**
+**（暂时不太考虑性能问题，更注重轻量，即使有做相应测试，但测试环境不同，所以性能对比不具有严格的参考价值。）**
 
 
 
